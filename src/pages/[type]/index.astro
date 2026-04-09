@@ -1,0 +1,195 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { CDN_URLS, getPrefix, getDynamicContent } from '../../lib/constants';
+
+const { type } = Astro.params;
+const validTypes = ['movie', 'movies', 'tv'];
+if (!validTypes.includes(type as string)) {
+  return Astro.redirect('/404');
+}
+
+const isMovie = type === 'movie' || type === 'movies';
+const pluralTypeForFetch = isMovie ? 'movie' : 'tv';
+const localizedType = isMovie ? 'الأفلام' : 'المسلسلات';
+
+// URL Parameters for filtering and pagination
+const url = new URL(Astro.url);
+const currentLang = url.searchParams.get('lang') || 'all'; 
+const searchQuery = url.searchParams.get('q') || '';
+const currentPage = parseInt(url.searchParams.get('page') || '1');
+const itemsPerPage = 24;
+
+// SSR Fetch: Dynamic listing using helper (fetch up to 5 indices to cover growth)
+const allItems = await getDynamicContent(pluralTypeForFetch as any, 5);
+
+// Filter by language and search query
+const filteredItems = allItems.filter(item => {
+  const matchesLang = currentLang === 'all' ? true : (item.data.lang === currentLang);
+  const matchesSearch = searchQuery === '' ? true : (
+     item.data.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+     (item.data.arabic_title?.toLowerCase().includes(searchQuery.toLowerCase()))
+  );
+  return matchesLang && matchesSearch;
+});
+
+// Calculate Pagination
+const totalItems = filteredItems.length;
+const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage));
+const paginatedItems = filteredItems.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+// Optimal Cache-Control for Cloudflare SSR + Edge Caching
+Astro.response.headers.set('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=14400');
+
+function getPageUrl(p: number, l: string, q = searchQuery) {
+  const params = new URLSearchParams();
+  if (l !== 'all') params.set('lang', l);
+  if (q) params.set('q', q);
+  if (p > 1) params.set('page', p.toString());
+  const str = params.toString();
+  return str ? `?${str}` : url.pathname;
+}
+---
+
+<Layout title={`تصفح كل ${localizedType} | معاك سيما`}>
+  <div class="space-y-12 py-8">
+    <div class="flex flex-col xl:flex-row xl:justify-between xl:items-end gap-10">
+      <div class="space-y-4 max-w-3xl">
+        <h1 class="text-3xl md:text-5xl font-black border-r-8 border-primary pr-6 bg-zinc-900/40 py-4 inline-block rounded-l-2xl w-fit drop-shadow-xl">
+          المكتبة الشاملة: {localizedType}
+        </h1>
+        <p class="text-zinc-500 font-medium pr-2 text-lg">اكتشف آلاف {localizedType} مع نظام تصفية متقدم وسرعة عالية.</p>
+        
+        <!-- Search Bar -->
+        <div class="pt-4">
+           <form action={url.pathname} method="GET" class="relative group">
+              {currentLang !== 'all' && <input type="hidden" name="lang" value={currentLang} />}
+              <input 
+                type="text" 
+                name="q" 
+                value={searchQuery}
+                placeholder={`ابحث عن ${localizedType} بالاسم العربي أو الإنجليزي...`}
+                class="w-full bg-zinc-900/80 border-2 border-zinc-800 rounded-2xl py-5 pr-14 pl-6 text-white outline-none focus:border-primary focus:ring-4 focus:ring-primary/20 transition-all placeholder:text-zinc-600 font-bold text-lg shadow-xl"
+              />
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="absolute right-5 top-1/2 -translate-y-1/2 text-zinc-600 group-focus-within:text-primary transition-colors"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+           </form>
+        </div>
+      </div>
+      
+      <!-- Filter Controls: Language Tabs -->
+      <div class="flex bg-zinc-900/60 p-2 rounded-3xl border border-zinc-800 shadow-xl w-fit shrink-0">
+        <a 
+          href={getPageUrl(1, 'all')}
+          class={`px-10 py-3.5 rounded-2xl text-base font-black transition-all ${currentLang === 'all' ? 'bg-primary text-white shadow-lg shadow-primary/20 scale-105' : 'text-zinc-500 hover:text-zinc-300'}`}
+        >
+          الكل
+        </a>
+        <a 
+          href={getPageUrl(1, 'ar')}
+          class={`px-10 py-3.5 rounded-2xl text-base font-black transition-all ${currentLang === 'ar' ? 'bg-primary text-white shadow-lg shadow-primary/20 scale-105' : 'text-zinc-500 hover:text-zinc-300'}`}
+        >
+          عربي
+        </a>
+        <a 
+          href={getPageUrl(1, 'en')}
+          class={`px-10 py-3.5 rounded-2xl text-base font-black transition-all ${currentLang === 'en' ? 'bg-primary text-white shadow-lg shadow-primary/20 scale-105' : 'text-zinc-500 hover:text-zinc-300'}`}
+        >
+          أجنبي
+        </a>
+      </div>
+    </div>
+    
+    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-8">
+      {paginatedItems.map(item => {
+        const isArabicItem = item.data.lang === 'ar';
+        const suffix = isArabicItem ? (isMovie ? 'كامل' : 'متوفر') : 'مترجم';
+        const badgeColor = isArabicItem ? 'bg-primary' : 'bg-blue-600';
+        const itemTitle = !isArabicItem && item.data.arabic_title ? item.data.title : (item.data.arabic_title || item.data.title);
+
+        return (
+          <a href={`/${isMovie ? 'movie' : 'tv'}/${item.data.slug}`} class="group relative block">
+             <div class="aspect-[2/3] rounded-2xl overflow-hidden relative shadow-2xl border border-zinc-800 group-hover:border-primary/40 transition-all duration-500 hover:-translate-y-2">
+                <img 
+                  src={`${CDN_URLS.STATIC}/${isMovie ? 'movies' : 'tv'}/${getPrefix(item.id)}/${item.id}/${item.id}.webp`}
+                  alt={item.data.title}
+                  loading="lazy"
+                  decoding="async"
+                  class="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 opacity-80 group-hover:opacity-100"
+                />
+                <div class="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/20 to-transparent opacity-90"></div>
+                
+                <div class="absolute top-3 right-3 z-20">
+                   <span class={`${badgeColor} text-white px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider shadow-lg ring-1 ring-black/50`}>
+                     {suffix}
+                   </span>
+                </div>
+
+                <div class="absolute bottom-0 p-4 w-full z-20">
+                  <div class="flex justify-between items-center text-[10px] font-bold text-zinc-400 mb-2">
+                    <span class="bg-zinc-950/50 px-2 py-0.5 rounded-full backdrop-blur-md">{item.data.year}</span>
+                    {item.data.genres?.[0] && (
+                      <span class="text-zinc-400 truncate max-w-[60%]">{item.data.genres[0]}</span>
+                    )}
+                  </div>
+                  <h3 class="font-bold text-white group-hover:text-primary transition-colors text-sm md:text-base line-clamp-2 leading-tight">
+                    {itemTitle}
+                  </h3>
+                </div>
+             </div>
+          </a>
+        );
+      })}
+      
+      {paginatedItems.length === 0 && (
+        <div class="col-span-full py-32 text-center border-4 border-dashed border-zinc-800 rounded-3xl flex flex-col items-center justify-center bg-zinc-900/20">
+           <div class="bg-zinc-800 p-6 rounded-full mb-6">
+              <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="text-zinc-600" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="9" y1="15" x2="15" y2="15"></line></svg>
+           </div>
+           <p class="text-zinc-500 text-2xl font-black italic">نعتذر، لا يوجد محتوى متاح حسب اختياراتك حالياً.</p>
+           <a href={`/${isMovie ? 'movie' : 'tv'}`} class="mt-6 text-primary hover:underline font-bold">العودة للكل</a>
+        </div>
+      )}
+    </div>
+
+    <!-- Professional Pagination Buttons -->
+    {totalPages > 1 && (
+      <div class="flex items-center justify-center gap-2 pt-12">
+        {currentPage > 1 && (
+          <a 
+            href={getPageUrl(currentPage - 1, currentLang)}
+            class="flex items-center justify-center w-12 h-12 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-400 hover:border-primary hover:text-primary transition-all group"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="rotate-180"><polyline points="9 18 15 12 9 6"></polyline></svg>
+          </a>
+        )}
+        
+        {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => {
+          // Show only a few pages if too many
+          if (totalPages > 7) {
+            if (p !== 1 && p !== totalPages && Math.abs(p - currentPage) > 1) {
+              if (p === 2 || p === totalPages - 1) return <span class="px-2 text-zinc-600">...</span>;
+              return null;
+            }
+          }
+          
+          return (
+            <a 
+              href={getPageUrl(p, currentLang)}
+              class={`flex items-center justify-center w-12 h-12 rounded-xl border transition-all text-sm font-black ${currentPage === p ? 'bg-primary border-primary text-white shadow-lg shadow-primary/20 scale-110 z-10' : 'bg-zinc-900 border-zinc-800 text-zinc-500 hover:border-zinc-500 hover:text-zinc-300'}`}
+            >
+              {p}
+            </a>
+          );
+        })}
+
+        {currentPage < totalPages && (
+          <a 
+            href={getPageUrl(currentPage + 1, currentLang)}
+            class="flex items-center justify-center w-12 h-12 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-400 hover:border-primary hover:text-primary transition-all group"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"></polyline></svg>
+          </a>
+        )}
+      </div>
+    )}
+  </div>
+</Layout>

@@ -1,0 +1,45 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #3b82f6; /* Blue 500 - High contrast ratio for dark theme */
+}
+
+/* Material Design 3 Typography and reset */
+body {
+  font-family: 'Roboto', 'Inter', system-ui, sans-serif;
+  @apply bg-zinc-950 text-white antialiased; /* Dark theme by default */
+}
+
+/* Skeleton Loading Animation */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.skeleton {
+  @apply bg-zinc-800 rounded;
+  background-image: linear-gradient(90deg, #27272a 0px, #3f3f46 40px, #27272a 80px);
+  background-size: 200% 100%;
+  animation: shimmer 2s infinite linear;
+}
+
+/* Adblocker Detection & Blur Logic */
+.adblock-detected #main-content-wrap {
+  filter: blur(40px) brightness(0.4);
+  pointer-events: none;
+  user-select: none;
+  transition: filter 0.8s ease;
+}
+
+#adblock-overlay {
+  transition: opacity 0.5s ease;
+}
+
+.adblock-detected #adblock-overlay {
+  display: flex !important;
+  opacity: 1;
+}

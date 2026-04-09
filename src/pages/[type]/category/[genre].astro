@@ -1,0 +1,108 @@
+---
+import Layout from '../../../layouts/Layout.astro';
+import { getDynamicContent, getPrefix, CDN_URLS, GENRES_LIST } from '../../../lib/constants';
+
+const { type, genre } = Astro.params;
+const isMovie = type === 'movie' || type === 'movies';
+const pluralType = isMovie ? 'movie' : 'tv';
+
+// Map slug back to Arabic name for filtering and display
+const genreObj = GENRES_LIST.find(g => g.slug === genre);
+const decodedGenre = genreObj ? genreObj.name : (genre || '');
+
+// Validate type
+const validTypes = ['movie', 'tv', 'movies', 'series'];
+if (!type || !validTypes.includes(type as string)) {
+  return Astro.redirect('/404');
+}
+
+// Fetch content with robust error handling
+let filteredItems = [];
+
+const normalizeAr = (s: string) => s ? s.normalize('NFKC').trim() : '';
+const normalizedDecodedGenre = normalizeAr(decodedGenre);
+
+try {
+  // Use 7 pages to balance category coverage and Cloudflare Worker CPU limits
+  const allItems = await getDynamicContent(pluralType as any, 7);
+  filteredItems = allItems.filter(item => 
+    item.data.genres?.some((g: string) => normalizeAr(g) === normalizedDecodedGenre)
+  );
+} catch (e) {
+  console.error("Genre fetch error:", e);
+  filteredItems = [];
+}
+
+const displayType = isMovie ? 'أفلام' : 'مسلسلات';
+const pageTitle = `تصفح ${displayType} ${decodedGenre} - معاك سيما`;
+const pageDescription = `مشاهدة وتنزيل أحدث الـ ${displayType} التي تنتمي لفئة ${decodedGenre} بجودة عالية على موقع معاك سيما.`;
+
+Astro.response.headers.set('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=14400');
+---
+
+<Layout title={pageTitle} description={pageDescription}>
+  <div class="space-y-12 py-8">
+    
+    <!-- Hero Header -->
+    <div class="relative overflow-hidden p-8 md:p-12 bg-zinc-900/40 border border-zinc-800 rounded-[2rem] backdrop-blur-md">
+      <div class="absolute -top-24 -right-24 w-64 h-64 bg-primary/20 blur-[100px] rounded-full opacity-50"></div>
+      <div class="relative z-10">
+        <nav class="flex items-center gap-2 text-xs text-zinc-500 font-bold mb-6 uppercase tracking-tighter">
+           <a href="/" class="hover:text-primary transition-colors">الرئيسية</a>
+           <span class="opacity-30">/</span>
+           <a href={`/${pluralType}`} class="hover:text-primary transition-colors">{displayType}</a>
+           <span class="opacity-30">/</span>
+           <span class="text-primary">{decodedGenre}</span>
+        </nav>
+        <h1 class="text-4xl md:text-6xl font-black text-white leading-tight">
+           <span class="text-primary">{decodedGenre}</span> على معاك سيما
+        </h1>
+        <p class="mt-4 text-zinc-400 font-medium max-w-2xl leading-relaxed flex items-center gap-2">
+           <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span>
+           نقدم لك قائمة متجددة من أحدث {displayType} الـ {decodedGenre} التي يمكنك مشاهدتها الآن.
+        </p>
+      </div>
+    </div>
+
+    {filteredItems.length > 0 ? (
+      <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
+        {filteredItems.map(item => (
+          <a href={`/${pluralType}/${item.data.slug}`} class="group">
+             <div class="aspect-[2/3] rounded-2xl overflow-hidden relative shadow-2xl border border-zinc-800/50 group-hover:border-primary/50 transition-all duration-500">
+                <img 
+                  src={`${CDN_URLS.STATIC}/${isMovie ? 'movies' : 'tv'}/${getPrefix(item.id)}/${item.id}/${item.id}.webp`}
+                  alt={item.data.title}
+                  loading="lazy"
+                  decoding="async"
+                  class="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+                />
+                <div class="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-900/20 to-transparent opacity-60"></div>
+                
+                <div class="absolute bottom-0 p-4 w-full translate-y-1 group-hover:translate-y-0 transition-transform duration-500">
+                   <div class="flex items-center justify-between">
+                      <span class="bg-primary/90 text-white text-[10px] font-black px-2 py-0.5 rounded shadow-lg uppercase">
+                        {item.data.year}
+                      </span>
+                      <span class="text-[10px] font-black text-white opacity-80 uppercase tracking-tighter">
+                        {isMovie ? 'فيلم' : 'مسلسل'}
+                      </span>
+                   </div>
+                </div>
+             </div>
+             <h3 class="mt-3 text-sm font-bold text-zinc-300 group-hover:text-primary truncate transition-colors">{item.data.title}</h3>
+          </a>
+        ))}
+      </div>
+    ) : (
+      <div class="text-center py-32 bg-zinc-900/20 rounded-3xl border border-dashed border-zinc-800">
+        <div class="text-6xl mb-6">🔍</div>
+        <h2 class="text-2xl font-black text-zinc-400">عذراً، لم نتمكن من الحصول على المحتوى حالياً.</h2>
+        <p class="mt-2 text-zinc-500 font-medium">نعمل حالياً على تحديث الفهارس، يرجى المحاولة بعد قليل!</p>
+        <div class="mt-8">
+           <a href="/categories" class="bg-primary hover:bg-blue-600 text-white px-8 py-3 rounded-2xl font-black transition-all">العودة للأقسام</a>
+        </div>
+      </div>
+    )}
+
+  </div>
+</Layout>

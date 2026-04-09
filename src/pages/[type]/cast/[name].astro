@@ -1,0 +1,68 @@
+---
+import Layout from '../../../layouts/Layout.astro';
+import CastSearch from '../../../components/CastSearch.svelte';
+import { CDN_URLS } from '../../../lib/constants';
+
+const { type, name } = Astro.params;
+const isMovie = type === 'movie' || type === 'movies';
+const pluralType = isMovie ? 'movie' : 'tv';
+
+// Decode the actor name from the URL
+const actorName = decodeURIComponent(name || '').trim();
+
+// Validate type
+const validTypes = ['movie', 'tv', 'movies', 'series'];
+if (!type || !validTypes.includes(type as string) || !actorName) {
+  return Astro.redirect('/404');
+}
+
+const displayType = isMovie ? 'أفلام' : 'مسلسلات';
+const pageTitle = `${displayType} ${actorName} - معاك سيما`;
+const pageDescription = `مشاهدة جميع ${displayType} التي شارك فيها ${actorName} بجودة عالية على موقع معاك سيما.`;
+
+Astro.response.headers.set('Cache-Control', 'public, s-maxage=7200, stale-while-revalidate=14400');
+---
+
+<Layout title={pageTitle} description={pageDescription}>
+  <div class="space-y-12 py-8">
+    
+    <!-- Hero Header (SSR - instant render) -->
+    <div class="relative overflow-hidden p-8 md:p-12 bg-zinc-900/40 border border-zinc-800 rounded-[2rem] backdrop-blur-md">
+      <div class="absolute -top-24 -right-24 w-64 h-64 bg-amber-500/20 blur-[100px] rounded-full opacity-50"></div>
+      <div class="relative z-10">
+        <nav class="flex items-center gap-2 text-xs text-zinc-500 font-bold mb-6 uppercase tracking-tighter">
+           <a href="/" class="hover:text-primary transition-colors">الرئيسية</a>
+           <span class="opacity-30">/</span>
+           <a href={`/${pluralType}`} class="hover:text-primary transition-colors">{displayType}</a>
+           <span class="opacity-30">/</span>
+           <span class="text-amber-400">طاقم العمل</span>
+           <span class="opacity-30">/</span>
+           <span class="text-white">{actorName}</span>
+        </nav>
+        <div class="flex items-center gap-5">
+           <div class="w-16 h-16 md:w-20 md:h-20 rounded-full bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-xl shadow-amber-500/20">
+              <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+           </div>
+           <div>
+              <h1 class="text-3xl md:text-5xl font-black text-white leading-tight">
+                 {actorName}
+              </h1>
+              <p class="mt-2 text-zinc-500 font-medium flex items-center gap-2">
+                 <span class="w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse"></span>
+                 البحث عن {displayType} في قاعدة البيانات...
+              </p>
+           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Svelte 5 Runes Progressive Search (client:load) -->
+    <CastSearch 
+      client:load 
+      actorName={actorName} 
+      contentType={type} 
+      cdnBase={CDN_URLS.STATIC} 
+    />
+
+  </div>
+</Layout>

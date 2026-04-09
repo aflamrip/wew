@@ -1,0 +1,127 @@
+---
+// src/components/EpisodeIsland.astro
+import { CDN_URLS, getPrefix } from '../lib/constants';
+import { fetchSeasonNdjson, seasonExists } from '../lib/cf-bindings';
+
+interface Props {
+  id: string;
+  season?: string;
+  prefix?: string;
+  currentEpisode?: string;
+  slug?: string;
+  combinedTitle?: string;
+}
+
+const { id, season = '1', prefix = 'p', currentEpisode, slug, combinedTitle = '' } = Astro.props;
+let episodes: any[] = [];
+let availableSeasons: string[] = [];
+
+try {
+  const seasonNum  = parseInt(season.toString());
+  const sPadded    = seasonNum.toString().padStart(2, '0');
+  const itemPrefix = prefix || getPrefix(id);
+
+  // 1. Discover available seasons (parallel HEAD checks via R2/KV)
+  const discoveryPromises = Array.from({ length: 10 }, async (_, i) => {
+    const s = (i + 1).toString().padStart(2, '0');
+    const exists = await seasonExists(itemPrefix, id, s).catch(() => false);
+    return exists ? (i + 1).toString() : null;
+  });
+  const results = await Promise.all(discoveryPromises);
+  availableSeasons = results.filter(Boolean) as string[];
+
+  // 2. Fetch current season episodes via R2/KV
+  const seasonText = await fetchSeasonNdjson(itemPrefix, id, sPadded);
+  if (seasonText) {
+    episodes = seasonText
+      .split('\n')
+      .filter(l => l.trim().length > 0)
+      .map(line => { try { return JSON.parse(line); } catch { return null; } })
+      .filter(Boolean);
+  }
+} catch (e) {}
+
+// Fallback for Ali Klay Mock
+if (slug === 'ali-klay' && episodes.length === 0) {
+  availableSeasons = ['1'];
+  episodes = Array.from({ length: 30 }, (_, i) => ({
+    id: '2096455',
+    season: 1,
+    episode: i + 1,
+    title: `الحلقة ${i + 1}`,
+    url: `/tv/20/2096455/s01/2096455.e${i + 1}.mp4`,
+  }));
+}
+---
+
+{(availableSeasons.length > 0) && (
+  <div class="mb-8 p-6 bg-zinc-900/40 rounded-2xl border border-zinc-800 shadow-xl">
+    <div class="flex items-center gap-3 mb-6">
+      <span class="w-1.5 h-6 bg-amber-500 rounded-full"></span>
+      <h2 class="text-xl font-black text-white">اختر موسم مسلسل {combinedTitle}</h2>
+    </div>
+    <div class="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
+      {availableSeasons.map((s) => {
+        const isActive = s === season.toString().replace(/^0/, '');
+        const epSlug   = slug || id;
+        const sPadded  = s.padStart(2, '0');
+        return (
+          <a
+            href={`/watch/tv/${epSlug}/s${sPadded}/e1`}
+            class={`px-8 py-3 rounded-xl border font-black transition-all duration-300 text-center min-w-[120px] ${
+              isActive
+                ? 'bg-amber-500 border-amber-400 text-black shadow-lg'
+                : 'bg-zinc-950 border-zinc-800 text-zinc-500 hover:text-white hover:border-zinc-500 hover:bg-zinc-900'
+            }`}
+          >
+            الموسم {s}
+          </a>
+        );
+      })}
+    </div>
+  </div>
+)}
+
+{episodes.length > 0 ? (
+  <div class="mt-8 bg-zinc-900/40 p-8 rounded-2xl border border-zinc-800 shadow-2xl backdrop-blur-md">
+    <div class="flex items-center justify-between mb-8 border-b border-zinc-800 pb-4">
+      <h2 class="text-xl font-bold text-white flex items-center gap-3">
+        <span class="w-2 h-8 bg-amber-500 rounded-full"></span>
+        حلقات مسلسل {combinedTitle} الموسم {(season || '01').toString().replace(/^0/, '')}
+      </h2>
+    </div>
+    <div class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-4">
+      {episodes.map((ep: any) => {
+        const isActive      = ep.episode?.toString() === currentEpisode?.toString().replace(/^0/, '');
+        const epSlug        = slug || id;
+        const episodeNumber = ep.episode || '1';
+        const currentS      = season || '1';
+        const targetSeasonPadded = currentS.toString().padStart(2, '0');
+        return (
+          <a
+            href={`/watch/tv/${epSlug}/s${targetSeasonPadded}/e${episodeNumber}`}
+            class={`relative flex flex-col items-center justify-center p-4 rounded-xl border transition-all duration-500 group ${
+              isActive
+                ? 'bg-amber-500 border-amber-400 text-black shadow-[0_0_30px_rgba(245,158,11,0.5)] scale-105 z-10'
+                : 'bg-zinc-950/50 border-zinc-800 text-zinc-400 hover:bg-zinc-800 hover:text-white hover:border-amber-500/50 hover:-translate-y-1'
+            }`}
+          >
+            <span class="text-lg font-black">الحلقة {episodeNumber}</span>
+            {isActive && (
+              <div class="absolute -top-1 -right-1">
+                <span class="flex h-3 w-3">
+                  <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+                  <span class="relative inline-flex rounded-full h-3 w-3 bg-white"></span>
+                </span>
+              </div>
+            )}
+          </a>
+        );
+      })}
+    </div>
+  </div>
+) : (
+  <div class="mt-8 p-12 text-center bg-zinc-900/20 rounded-2xl border border-dashed border-zinc-800">
+    <p class="text-zinc-600 font-medium italic">لم يتم العثور على حلقات للموسم {season} حالياً.</p>
+  </div>
+)}

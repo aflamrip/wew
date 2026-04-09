@@ -1,0 +1,66 @@
+{
+  // ---------------------------------------------------------------
+  // wrangler.jsonc — Cloudflare Workers (Astro 6 + @astrojs/cloudflare v13)
+  // ---------------------------------------------------------------
+  "name": "ma",
+  "main": "@astrojs/cloudflare/entrypoints/server",
+  "compatibility_date": "2026-03-31",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+
+  // Static assets served directly from the Worker
+  "assets": {
+    "binding": "ASSETS",
+    "directory": "./dist"
+  },
+
+  // Cloudflare Images binding (used by Astro imageService: 'cloudflare-binding')
+  "images": {
+    "binding": "IMAGES"
+  },
+
+  // ---------------------------------------------------------------
+  // R2 Buckets
+  // Replace "bucket_name" values with your actual R2 bucket names.
+  // For local dev, Wrangler will simulate R2 from .wrangler/state/
+  // ---------------------------------------------------------------
+  "r2_buckets": [
+    {
+      // Static CDN bucket: mirrors https://static.ma3ak.top
+      // Stores: /movies/<prefix>/<id>/<id>.ndjson, /tv/<prefix>/<id>/<id>.ndjson
+      //         /movies/index.N.ndjson, /tv/index.N.ndjson
+      //         poster images: /movies/<prefix>/<id>/<id>.webp
+      "binding": "R2",
+      "bucket_name": "static",
+      "preview_bucket_name": "mogcdn-static-preview"
+    },
+    {
+      // Video CDN bucket: mirrors https://s001.mogcdn.com
+      // Stores: /movies/<prefix>/<id>/<id>.mp4, /tv/…, /…/ar.vtt
+      "binding": "CDN_VIDEO",
+      "bucket_name": "mogcdn-video",
+      "preview_bucket_name": "mogcdn-video-preview"
+    }
+  ],
+
+  // ---------------------------------------------------------------
+  // KV Namespaces
+  // Replace "id" values with your actual KV namespace IDs.
+  // Run: npx wrangler kv namespace create CDN_CACHE
+  //      npx wrangler kv namespace create CDN_CACHE --preview
+  // ---------------------------------------------------------------
+  "kv_namespaces": [
+    {
+      // Cache layer: stores serialised ndjson pages to avoid
+      // repeated R2 reads within the same edge region.
+      // TTL is managed manually via metadata in cf-bindings.ts.
+      "binding": "SESSION",
+      "id": "a8ae66000e3347ea9999ebb1f9736d21",
+      "preview_id": "REPLACE_WITH_YOUR_KV_PREVIEW_NAMESPACE_ID"
+    }
+  ],
+
+  // Observability (optional but recommended)
+  "observability": {
+    "enabled": true
+  }
+}

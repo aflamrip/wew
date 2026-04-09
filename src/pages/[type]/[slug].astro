@@ -1,0 +1,194 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { CDN_URLS, getPrefix, getDynamicItemBySlug, getDynamicContent, GENRES_LIST } from '../../lib/constants';
+
+const { type, slug } = Astro.params;
+const isMovie = type === 'movie' || type === 'movies';
+const pluralType = isMovie ? 'movie' : 'tv';
+
+// SSR Find by Slug: Dynamically find from CDN indices
+let item = await getDynamicItemBySlug(pluralType as any, slug as string);
+
+const mocks: Record<string, any> = {
+  "family-business": { 
+    id: "2097884",
+    data: { title: "فاميلي بيزنس", year: 2026, type: "movie", lang: "ar", overview: "تكافح عائلة فقيرة من أجل البقاء على قيد الحياة من خلال عمليات سرقة بسيطة، لكن الأب يقرر ابتكار خطة مختلفة تقوم على حصول كل فرد من أفراد العائلة على وظيفة في منزل عائلة ثرية، مع إخفاء صلة قرابتهمببعضهم البعض. ويواجهون باستمرار التناقض الصارخ بين عالمهم وعالم أصحاب العمل.", genres: ["ﻛﻮﻣﻴدي"], slug: "family-business" } 
+  },
+  "ali-klay": { 
+    id: "2096455",
+    data: { title: "علي كلاي", year: 2026, type: "tv", lang: "ar", overview: "علي، شاب نال لقب «كلاي» بين جيرانه بفضل براعته الاستثنائية في الملاكمة وقوة جأشه. بعيداً عن حلبة النزال، يعمل في تجارة قطع غيار السيارات، محاولا الموازنة بين خشونة عمله وطموحاته الرياضية.\r\nلكن أقسى مبارياته لا تكن فوق الحلبة، بل في حياته الخاصة؛ حيث يجد نفسه عالقاً في حلبة من النزاعات الأسرية المستمرة، وصراعات عاطفية مع حبيبته.", genres: ["ﺩﺭاﻣﺎ", "أكشن"], slug: "ali-klay" } 
+  }
+};
+
+if (!item || (slug && mocks[slug] && !item.data.overview)) {
+  if (slug && mocks[slug]) item = mocks[slug];
+}
+
+const suggestions = (await getDynamicContent(isMovie ? 'movie' : 'tv', 1))
+  .filter(s => s.data.slug !== slug)
+  .slice(0, 6);
+
+if (!item) {
+  return Astro.redirect('/404');
+}
+
+const prefix = getPrefix(item.id);
+const posterDomainType = isMovie ? 'movies' : 'tv';
+const posterUrl = `${CDN_URLS.STATIC}/${posterDomainType}/${prefix}/${item.id}/${item.id}.webp`;
+
+Astro.response.headers.set('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=14400');
+
+const isArabic = item.data.lang === 'ar';
+const arabicTitle = item.data['title-ar'] || item.data.arabic_title;
+const englishTitle = item.data.original_title || (isArabic ? '' : item.data.title);
+
+// Robust title logic for H1: 
+const cleanTitleStrForH1 = (t: string) => t 
+  ? t.replace(/\s*ج\s*[0-9\u0660-\u0669]+/gi, '')
+     .replace(/\s*الموسم\s*[0-9\u0660-\u0669]+/gi, '')
+     .replace(/\s*الجزء\s+[^\s]+/gi, '')
+     .replace(/\s*\(?\[?[0-9]{4}\)?\]?$/g, '') // Remove year at the end
+     .trim() 
+  : '';
+const displayTitleH1 = cleanTitleStrForH1(arabicTitle || item.data.title);
+
+const movieYear = item.data.year || (item.data.release_date ? item.data.release_date.split('-')[0] : '');
+---
+
+<Layout type={isMovie ? 'movie' : 'tv'} item={item} title={displayTitleH1}>
+
+  <div class="space-y-12 py-8 mt-4">
+    
+    <!-- Hero Details Section -->
+    <div class="flex flex-col md:flex-row gap-8 items-start">
+      <!-- Poster Container -->
+      <div class="w-full md:w-1/3 lg:w-1/4 shrink-0 rounded-2xl overflow-hidden shadow-2xl relative border border-zinc-800 bg-zinc-900 aspect-[2/3]">
+         <img 
+           src={posterUrl} 
+           alt={`بوستر ${item.data.title}`} 
+           loading="eager"
+           fetchpriority="high"
+           decoding="async"
+           class="w-full h-full object-cover relative z-10" 
+           onerror="this.parentElement.querySelector('.skeleton-placeholder').classList.remove('hidden'); this.style.display='none';" 
+         />
+         <div class="skeleton-placeholder absolute inset-0 bg-zinc-800 flex items-center justify-center text-zinc-500 skeleton z-0 hidden">
+           بوستر {item.data.title}
+         </div>
+      </div>
+      
+      <!-- Info Details -->
+      <div class="flex-1 space-y-6 bg-zinc-900/40 p-6 md:p-8 rounded-2xl border border-zinc-800">
+        <div class="space-y-4 border-b border-zinc-800 pb-6">
+          <div class="flex items-center gap-3 mb-2">
+            <span class={`px-3 py-1 rounded-lg text-xs font-black uppercase tracking-wider ${isArabic ? 'bg-primary/20 text-primary border border-primary/30' : 'bg-blue-500/20 text-blue-400 border border-blue-500/30'}`}>
+              {isArabic ? 'محتوى عربي' : 'محتوى أجنبي'}
+            </span>
+            <span class="bg-zinc-800 text-zinc-400 px-3 py-1 rounded-lg text-xs font-bold border border-zinc-700">
+              {isMovie ? 'سينمائي' : 'تلفزيوني'}
+            </span>
+          </div>
+          <h1 class="text-3xl md:text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-l from-white to-zinc-400">
+            {isMovie ? 'فيلم' : 'مسلسل'} {displayTitleH1} {movieYear} {isArabic ? 'كامل' : 'مترجم'} - معاك سيما
+          </h1>
+          <div class="flex flex-wrap items-center gap-3 text-sm font-medium pt-2">
+             <span class="bg-zinc-800/80 text-white px-4 py-1.5 rounded-xl border border-zinc-700 font-black">
+               {isArabic ? 'كامل HD' : 'مترجم للعربية'}
+             </span>
+             <span class="text-zinc-500 mr-2">سنة الإنتاج: {movieYear || '2026'}</span>
+          </div>
+        </div>
+
+        <div class="space-y-3">
+          <h2 class="text-xl font-bold text-zinc-200 flex items-center gap-3">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-primary"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h9z"></path></svg>
+            قصة {isMovie ? 'فيلم' : 'مسلسل'} {displayTitleH1}
+          </h2>          <p class="text-zinc-400 text-lg leading-relaxed bg-zinc-800/20 p-4 rounded-xl border border-zinc-800/50" style="white-space: pre-line;">
+            {item.data.overview || 'لا توجد قصة متاحة حالياً.'}
+          </p>
+        </div>
+
+        {(item.data.director || (item.data.cast && item.data.cast.length > 0)) && (
+        <div class="space-y-4 pt-4 border-t border-zinc-800/50">
+          <h3 class="text-xl font-bold text-zinc-200 flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-primary"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+            طاقم العمل
+          </h3>
+          <div class="flex flex-wrap items-center gap-3">
+             {item.data.director && (
+                <div class="flex items-center gap-2 bg-zinc-800/80 px-4 py-2 rounded-xl border border-zinc-700">
+                   <span class="text-zinc-500 text-xs font-bold">إخراج:</span>
+                   <span class="text-white text-sm font-black">{item.data.director}</span>
+                </div>
+             )}
+             {item.data.cast && item.data.cast.map((actor: string) => (
+                <a href={`/${pluralType}/cast/${encodeURIComponent(actor.trim())}`} class="flex items-center gap-2 bg-zinc-800/40 hover:bg-amber-500/20 text-zinc-300 hover:text-amber-400 transition-colors px-4 py-2 rounded-xl border border-zinc-800 hover:border-amber-500/50 shadow-sm cursor-pointer">
+                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="opacity-50"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                   <span class="text-sm font-medium">{actor}</span>
+                </a>
+             ))}
+          </div>
+        </div>
+        )}
+
+        <div class="space-y-4 pt-4">
+          <h3 class="text-xl font-bold text-zinc-200 flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-primary"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><line x1="7" y1="7" x2="7.01" y2="7"></line></svg>
+            التصنيفات
+          </h3>
+          <div class="flex flex-wrap gap-2">
+            {item.data.genres?.map((genre: string) => {
+              const normalizeAr = (s: string) => s ? s.normalize('NFKC').trim() : '';
+              const genreObj = GENRES_LIST.find(gl => gl.name === normalizeAr(genre));
+              const genreSlug = genreObj ? genreObj.slug : encodeURIComponent(genre.trim());
+              return (
+                <a href={`/${pluralType}/category/${genreSlug}`} class="bg-zinc-800 hover:bg-primary/20 hover:text-primary hover:border-primary/50 transition-all text-zinc-300 px-5 py-2 rounded-xl text-sm border border-zinc-700 font-bold">
+                  {genre}
+                </a>
+              );
+            })}
+          </div>
+        </div>
+        
+        <div class="pt-8 flex flex-wrap gap-4">
+          <a href={`/watch/${isMovie ? 'movie' : 'tv'}/${item.data.slug}`} class="inline-flex items-center justify-center bg-primary hover:bg-blue-600 text-white font-black py-4 px-12 rounded-2xl transition-all shadow-[0_0_30px_rgba(30,64,175,0.4)] hover:shadow-primary/60 gap-3 hover:-translate-y-1 text-xl lg:text-2xl w-full sm:w-auto">
+             <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+             مشاهدة {isMovie ? 'فيلم' : 'مسلسل'} {displayTitleH1} اون لاين HD
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Suggested Content Section -->
+    {suggestions.length > 0 && (
+      <div class="mt-20 space-y-8">
+        <div class="flex items-center gap-4">
+          <h2 class="text-2xl font-black text-white border-r-4 border-amber-500 pr-4">{isMovie ? 'أفلام' : 'مسلسلات'} مقترحة قد تعجبك بعد مشاهدة {isMovie ? 'فيلم' : 'مسلسل'} {(!isArabic && isMovie) ? englishTitle : displayTitleH1}</h2>
+        </div>
+        
+        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-5">
+          {suggestions.map(s => (
+            <a href={`/${isMovie ? 'movies' : 'tv'}/${s.data.slug}`} class="group relative bg-zinc-900 rounded-xl overflow-hidden border border-zinc-800 hover:border-amber-500 transition-all hover:-translate-y-1 shadow-lg aspect-[2/3]">
+               <img 
+                 src={`${CDN_URLS.STATIC}/${isMovie ? 'movies' : 'tv'}/${getPrefix(s.id)}/${s.id}/${s.id}.webp`}
+                 alt={s.data.title}
+                 loading="lazy"
+                 decoding="async"
+                 class="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-80 group-hover:opacity-100" 
+               />
+               <div class="absolute inset-0 bg-gradient-to-t from-zinc-950 via-transparent to-transparent z-10 opacity-90"></div>
+               <div class="p-3 absolute bottom-0 right-0 left-0 z-20">
+                  <h3 class="text-sm font-bold text-white group-hover:text-amber-400 transition-colors line-clamp-1">{s.data.title}</h3>
+                  <div class="flex items-center gap-2 mt-1 text-[10px] text-zinc-400 font-bold">
+                     <span>{s.data.year}</span>
+                     <span class="w-1 h-1 bg-zinc-700 rounded-full"></span>
+                     <span class="text-amber-500/80">{s.data.genres?.[0] || (isMovie ? 'فيلم' : 'مسلسل')}</span>
+                  </div>
+               </div>
+            </a>
+          ))}
+        </div>
+      </div>
+    )}
+  </div>
+</Layout>

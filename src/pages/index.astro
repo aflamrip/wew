@@ -1,0 +1,171 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { CDN_URLS, getPrefix, getDynamicContent } from '../lib/constants';
+
+// SSR Fetch: Dynamic homepage from CDN indices
+const allMovies = await getDynamicContent('movie');
+const allSeries = await getDynamicContent('tv');
+
+const arabicMovies = allMovies.filter(m => m.data.lang === 'ar').slice(0, 12);
+const foreignMovies = allMovies.filter(m => m.data.lang === 'en').slice(0, 12);
+
+const arabicSeries = allSeries.filter(s => s.data.lang === 'ar').slice(0, 12);
+const foreignSeries = allSeries.filter(s => s.data.lang === 'en').slice(0, 12);
+
+// Low cache on edge to reflect CDN updates quickly
+Astro.response.headers.set('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=14400');
+---
+
+<Layout title="موقع معاك سيما - الرئيسية">
+  <div class="space-y-16 py-8">
+    
+    <!-- Arabic Movies Section -->
+    <section>
+      <div class="flex justify-between items-end mb-6 px-1">
+        <h2 class="text-3xl font-black border-r-4 border-primary pr-4 flex items-center gap-3">
+          <span class="w-2 h-8 bg-primary rounded-full"></span>
+          أحدث الأفلام العربية
+        </h2>
+        <a href="/movie?lang=ar" class="text-sm text-zinc-400 hover:text-white transition-colors">عرض الكل</a>
+      </div>
+      
+      <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
+        {arabicMovies.map(movie => (
+          <a href={`/movie/${movie.data.slug}`} class="group">
+             <div class="aspect-[2/3] rounded-2xl overflow-hidden relative shadow-2xl border border-zinc-800/50 group-hover:border-primary/50 transition-all duration-500">
+                <img 
+                  src={`${CDN_URLS.STATIC}/movies/${getPrefix(movie.id)}/${movie.id}/${movie.id}.webp`}
+                  alt={movie.data.title}
+                  width="300"
+                  height="450"
+                  class="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+                  loading="lazy"
+                  decoding="async"
+                />
+                <div class="absolute inset-0 bg-gradient-to-t from-zinc-950 via-transparent to-transparent opacity-60"></div>
+                <div class="absolute bottom-0 p-4 w-full translate-y-2 group-hover:translate-y-0 transition-transform duration-500">
+                  <div class="flex justify-between items-center text-xs font-bold text-white mb-1">
+                    <span class="bg-primary/90 px-2 py-0.5 rounded text-[10px]">كامل</span>
+                    <span>{movie.data.year}</span>
+                  </div>
+                </div>
+             </div>
+             <h3 class="mt-3 text-sm font-bold text-zinc-300 group-hover:text-primary truncate transition-colors">{movie.data.title}</h3>
+          </a>
+        ))}
+      </div>
+    </section>
+
+    <!-- Foreign Movies Section -->
+    <section>
+      <div class="flex justify-between items-end mb-6 px-1">
+        <h2 class="text-3xl font-black border-r-4 border-blue-500 pr-4 flex items-center gap-3">
+          <span class="w-2 h-8 bg-blue-500 rounded-full"></span>
+          أحدث الأفلام الأجنبية
+        </h2>
+        <a href="/movie?lang=en" class="text-sm text-zinc-400 hover:text-white transition-colors">عرض الكل</a>
+      </div>
+      
+      <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
+        {foreignMovies.map(movie => (
+          <a href={`/movie/${movie.data.slug}`} class="group">
+             <div class="aspect-[2/3] rounded-2xl overflow-hidden relative shadow-2xl border border-zinc-800/50 group-hover:border-blue-500/50 transition-all duration-500">
+                <img 
+                  src={`${CDN_URLS.STATIC}/movies/${getPrefix(movie.id)}/${movie.id}/${movie.id}.webp`}
+                  alt={movie.data.title}
+                  width="300"
+                  height="450"
+                  class="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+                  loading="lazy"
+                  decoding="async"
+                />
+                <div class="absolute inset-0 bg-gradient-to-t from-zinc-950 via-transparent to-transparent opacity-60"></div>
+                <div class="absolute bottom-0 p-4 w-full translate-y-2 group-hover:translate-y-0 transition-transform duration-500">
+                  <div class="flex justify-between items-center text-xs font-bold text-white mb-1">
+                    <span class="bg-blue-600/90 px-2 py-0.5 rounded text-[10px]">مترجم</span>
+                    <span>{movie.data.year}</span>
+                  </div>
+                </div>
+             </div>
+             <h3 class="mt-3 text-sm font-bold text-zinc-300 group-hover:text-blue-400 truncate transition-colors">{movie.data.title}</h3>
+          </a>
+        ))}
+      </div>
+    </section>
+
+    <!-- Arabic Series Section -->
+    <section>
+      <div class="flex justify-between items-end mb-6 px-1">
+        <h2 class="text-3xl font-black border-r-4 border-emerald-500 pr-4 flex items-center gap-3">
+          <span class="w-2 h-8 bg-emerald-500 rounded-full"></span>
+          أحدث المسلسلات العربية
+        </h2>
+        <a href="/tv?lang=ar" class="text-sm text-zinc-400 hover:text-white transition-colors">عرض الكل</a>
+      </div>
+      
+      <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
+        {arabicSeries.map(show => (
+          <a href={`/tv/${show.data.slug}`} class="group">
+             <div class="aspect-[2/3] rounded-2xl overflow-hidden relative shadow-2xl border border-zinc-800/50 group-hover:border-emerald-500/50 transition-all duration-500">
+                <img 
+                  src={`${CDN_URLS.STATIC}/tv/${getPrefix(show.id)}/${show.id}/${show.id}.webp`}
+                  alt={show.data.title}
+                  width="300"
+                  height="450"
+                  class="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+                  loading="lazy"
+                  decoding="async"
+                />
+                <div class="absolute inset-0 bg-gradient-to-t from-zinc-950 via-transparent to-transparent opacity-60"></div>
+                <div class="absolute bottom-0 p-4 w-full translate-y-2 group-hover:translate-y-0 transition-transform duration-500">
+                  <div class="flex justify-between items-center text-xs font-bold text-white mb-1">
+                    <span class="bg-emerald-600/90 px-2 py-0.5 rounded text-[10px]">مسلسل</span>
+                    <span>{show.data.year}</span>
+                  </div>
+                </div>
+             </div>
+             <h3 class="mt-3 text-sm font-bold text-zinc-300 group-hover:text-emerald-400 truncate transition-colors">{show.data.title}</h3>
+          </a>
+        ))}
+      </div>
+    </section>
+
+    <!-- Foreign Series Section -->
+    <section>
+      <div class="flex justify-between items-end mb-6 px-1">
+        <h2 class="text-3xl font-black border-r-4 border-amber-500 pr-4 flex items-center gap-3">
+          <span class="w-2 h-8 bg-amber-500 rounded-full"></span>
+          أحدث المسلسلات الأجنبية
+        </h2>
+        <a href="/tv?lang=en" class="text-sm text-zinc-400 hover:text-white transition-colors">عرض الكل</a>
+      </div>
+      
+      <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
+        {foreignSeries.map(show => (
+          <a href={`/tv/${show.data.slug}`} class="group">
+             <div class="aspect-[2/3] rounded-2xl overflow-hidden relative shadow-2xl border border-zinc-800/50 group-hover:border-amber-500/50 transition-all duration-500">
+                <img 
+                  src={`${CDN_URLS.STATIC}/tv/${getPrefix(show.id)}/${show.id}/${show.id}.webp`}
+                  alt={show.data.title}
+                  width="300"
+                  height="450"
+                  class="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+                  loading="lazy"
+                  decoding="async"
+                />
+                <div class="absolute inset-0 bg-gradient-to-t from-zinc-950 via-transparent to-transparent opacity-60"></div>
+                <div class="absolute bottom-0 p-4 w-full translate-y-2 group-hover:translate-y-0 transition-transform duration-500">
+                  <div class="flex justify-between items-center text-xs font-bold text-white mb-1">
+                    <span class="bg-amber-600/90 px-2 py-0.5 rounded text-[10px]">مترجم</span>
+                    <span>{show.data.year}</span>
+                  </div>
+                </div>
+             </div>
+             <h3 class="mt-3 text-sm font-bold text-zinc-300 group-hover:text-amber-400 truncate transition-colors">{show.data.title}</h3>
+          </a>
+        ))}
+      </div>
+    </section>
+
+  </div>
+</Layout>

@@ -1,0 +1,35 @@
+{
+  "name": "ma7",
+  "type": "module",
+  "version": "0.0.1",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "wrangler types && astro dev",
+    "build": "wrangler types && astro build",
+    "preview": "astro preview",
+    "astro": "astro",
+    "cf:types": "wrangler types"
+  },
+  "dependencies": {
+    "@astrojs/cloudflare": "^13.1.8",
+    "@astrojs/partytown": "^2.1.5",
+    "@astrojs/prism": "^4.0.1",
+    "@astrojs/rss": "^4.0.17",
+    "@astrojs/sitemap": "^3.7.1",
+    "@astrojs/svelte": "^8.0.3",
+    "@orama/orama": "^3.0.0",
+    "@tailwindcss/vite": "^4.0.0",
+    "astro": "^6.1.5",
+    "can-ndjson-stream": "^1.0.0",
+    "embla-carousel-autoplay": "^8.5.1",
+    "embla-carousel-svelte": "^8.5.1",
+    "plyr": "^3.7.8",
+    "svelte": "^5.0.0",
+    "tailwindcss": "^4.0.0"
+  },
+  "devDependencies": {
+    "wrangler": "^4.79.0"
+  }
+}

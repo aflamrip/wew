@@ -1,0 +1,178 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { getDynamicContent, CDN_URLS, getPrefix } from '../lib/constants';
+
+const q = Astro.url.searchParams.get('q') || '';
+
+/** 
+ * ULTIMATE Arabic Text Normalization 
+ * Now covers ALL Hamza variations (ء, ؤ, ئ, أ, إ, آ) and makes them smart 
+ */
+function normalizeArabic(text: string) {
+  if (!text) return "";
+  return text
+    // 1. Remove Tashkeel (Diacritics)
+    .replace(/[\u064B-\u0652]/g, "")
+    // 2. Normalize Alefs (أ إ آ ٱ -> ا)
+    .replace(/[أإآٱ]/g, "ا")
+    // 3. Normalize Teh Marbuta (ة -> ه)
+    .replace(/ة/g, "ه")
+    // 4. Normalize Ya/Alef Maqsura (ى ئ -> ي)
+    .replace(/[ىئ]/g, "ي")
+    // 5. Normalize Waw with Hamza (ؤ -> و)
+    .replace(/ؤ/g, "و")
+    // 6. Handle standalone Hamza (ء) - We can keep it or treat it as a ghost but let's keep it normalized for common typos
+    .replace(/ء/g, "") // Often people miss the final hamza (سماء -> سما)
+    // 7. Cleanup
+    .toLowerCase()
+    .trim();
+}
+
+let movieResults = [];
+let tvResults = [];
+let suggestions = [];
+
+try {
+  if (q) {
+    // High coverage indices access
+    const allMovies = await getDynamicContent('movie', 25);
+    const allTV = await getDynamicContent('tv', 25);
+    
+    const normalizedQuery = normalizeArabic(q);
+
+    const filterFn = (item: any) => {
+      const normTitle = normalizeArabic(item.data.title || "");
+      const normArabicTitle = normalizeArabic(item.data.arabic_title || "");
+      const normSlug = normalizeArabic(item.data.slug || "");
+      
+      return normTitle.includes(normalizedQuery) || 
+             normArabicTitle.includes(normalizedQuery) ||
+             normSlug.includes(normalizedQuery);
+    };
+
+    movieResults = allMovies.filter(filterFn).slice(0, 36);
+    tvResults = allTV.filter(filterFn).slice(0, 36);
+  } else {
+    // Diverse range of suggestions
+    const mSuggest = await getDynamicContent('movie', 1);
+    const tSuggest = await getDynamicContent('tv', 1);
+    suggestions = [...mSuggest.slice(0, 8), ...tSuggest.slice(0, 8)].sort(() => Math.random() - 0.5);
+  }
+} catch (e) {
+  console.error("Search error:", e);
+}
+
+const pageTitle = q ? `نتائج البحث عن: ${q} - معاك سيما` : "محرك البحث الشامل - معاك سيما";
+---
+
+<Layout title={pageTitle} description="ابحث عن أحدث الأفلام والمسلسلات العربية والأجنبية المترجمة بجودة عالية.">
+  <div class="max-w-7xl mx-auto py-12 px-4 space-y-16">
+    
+    <!-- Hero / Search Box -->
+    <div class="text-center space-y-8">
+       <div class="flex flex-col items-center gap-4">
+          <h1 class="text-4xl md:text-6xl font-black text-white leading-tight">
+            {q ? 'نتائج البحث عن ' : 'محرك البحث '} 
+            <span class="text-primary block md:inline-block mt-2 md:mt-0">{q ? `"${q}"` : 'الشامل'}</span>
+          </h1>
+          <p class="text-zinc-500 font-medium text-sm md:text-base max-w-xl">نتائج فورية من قاعدة بيانات الأفلام والمسلسلات العربية والأجنبية المخصصة</p>
+       </div>
+
+       <form action="/search" method="GET" class="relative max-w-3xl mx-auto group">
+          <div class="absolute -inset-1 bg-gradient-to-r from-primary to-blue-500 rounded-[2rem] blur opacity-15 group-focus-within:opacity-40 transition duration-700"></div>
+          <div class="relative flex items-center bg-zinc-900 border border-zinc-800 rounded-2xl p-2 shadow-2xl overflow-hidden focus-within:border-primary/50 transition-all duration-300">
+             <input 
+               type="text" 
+               name="q" 
+               value={q}
+               placeholder="ابحث عن اسم العمل باللغة العربية أو الإنجليزية..." 
+               class="flex-1 bg-transparent border-none outline-none px-6 text-lg md:text-xl font-bold text-white placeholder-zinc-700 min-w-0"
+               required
+               autocomplete="off"
+               autofocus
+             />
+             <button type="submit" class="bg-primary hover:bg-blue-600 text-white px-8 py-3.5 rounded-xl font-black shadow-xl transition-all active:scale-95">
+                بحث
+             </button>
+          </div>
+       </form>
+    </div>
+
+    {q ? (
+      <div class="space-y-20">
+        <!-- Movies Results -->
+        <section>
+           <div class="flex items-center justify-between mb-8 pb-4 border-b border-zinc-800/50">
+              <h2 class="text-2xl font-black flex items-center gap-3">
+                 <span class="w-2 h-8 bg-primary rounded-full"></span>
+                 الأفلام <span class="bg-zinc-800 text-zinc-400 px-3 py-1 rounded-lg text-xs">{movieResults.length} نتيجة</span>
+              </h2>
+           </div>
+           {movieResults.length > 0 ? (
+             <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
+                {movieResults.map(item => (
+                   <a href={`/movie/${item.data.slug}`} class="group space-y-2">
+                      <div class="aspect-[2/3] bg-zinc-900 rounded-2xl overflow-hidden relative border border-zinc-800 group-hover:border-primary/50 transition-all duration-500 shadow-xl">
+                         <img src={`${CDN_URLS.STATIC}/movies/${getPrefix(item.id)}/${item.id}/${item.id}.webp`} alt={item.data.title} class="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" loading="lazy" decoding="async" />
+                         <div class="absolute inset-0 bg-gradient-to-t from-black via-transparent opacity-60"></div>
+                         <div class="absolute top-2 right-2 flex flex-col gap-1">
+                            <span class="bg-black/60 backdrop-blur-md text-[10px] font-black px-2 py-1 rounded-lg border border-white/10">{item.data.year}</span>
+                         </div>
+                      </div>
+                      <h3 class="text-sm font-bold text-zinc-300 group-hover:text-primary truncate transition-colors px-1">{item.data.title}</h3>
+                   </a>
+                ))}
+             </div>
+           ) : <div class="text-center py-16 bg-zinc-900/20 rounded-3xl border border-dashed border-zinc-800 text-zinc-600 font-bold">لا توجد أفلام تطابق بحثك</div>}
+        </section>
+
+        <!-- TV Results -->
+        <section>
+           <div class="flex items-center justify-between mb-8 pb-4 border-b border-zinc-800/50">
+              <h2 class="text-2xl font-black flex items-center gap-3">
+                 <span class="w-2 h-8 bg-emerald-500 rounded-full"></span>
+                 المسلسلات <span class="bg-zinc-800 text-zinc-400 px-3 py-1 rounded-lg text-xs">{tvResults.length} نتيجة</span>
+              </h2>
+           </div>
+           {tvResults.length > 0 ? (
+             <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
+                {tvResults.map(item => (
+                   <a href={`/tv/${item.data.slug}`} class="group space-y-2">
+                      <div class="aspect-[2/3] bg-zinc-900 rounded-2xl overflow-hidden relative border border-zinc-800 group-hover:border-emerald-500/50 transition-all duration-500 shadow-xl">
+                         <img src={`${CDN_URLS.STATIC}/tv/${getPrefix(item.id)}/${item.id}/${item.id}.webp`} alt={item.data.title} class="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" loading="lazy" decoding="async" />
+                         <div class="absolute inset-0 bg-gradient-to-t from-black via-transparent opacity-60"></div>
+                         <div class="absolute top-2 right-2 flex flex-col gap-1">
+                            <span class="bg-black/60 backdrop-blur-md text-[10px] font-black px-2 py-1 rounded-lg border border-white/10">{item.data.year}</span>
+                         </div>
+                      </div>
+                      <h3 class="text-sm font-bold text-zinc-300 group-hover:text-emerald-400 truncate transition-colors px-1">{item.data.title}</h3>
+                   </a>
+                ))}
+             </div>
+           ) : <div class="text-center py-16 bg-zinc-900/20 rounded-3xl border border-dashed border-zinc-800 text-zinc-600 font-bold">لا توجد مسلسلات تطابق بحثك</div>}
+        </section>
+      </div>
+    ) : (
+      <!-- Suggestions when no query -->
+      <div class="space-y-10">
+         <div class="flex items-center gap-4">
+            <h2 class="text-2xl font-black text-white border-r-4 border-amber-500 pr-4">مقترحات مميزة</h2>
+            <div class="h-px flex-1 bg-zinc-800/50"></div>
+         </div>
+         <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-6">
+            {suggestions.map(item => (
+               <a href={`/${item.data.type === 'movie' ? 'movie' : 'tv'}/${item.data.slug}`} class="group">
+                  <div class="aspect-[2/3] bg-zinc-900 rounded-2xl overflow-hidden relative border border-zinc-800 hover:border-amber-500 shadow-xl transition-all duration-500">
+                     <img src={`https://static.ma3ak.top/${item.data.type === 'movie' ? 'movies' : 'tv'}/${item.id.toString().substring(0, 2)}/${item.id}/${item.id}.webp`} alt={item.data.title} loading="lazy" decoding="async" class="absolute inset-0 w-full h-full object-cover opacity-80 group-hover:opacity-100 group-hover:scale-105 transition-all duration-500" />
+                     <div class="absolute inset-x-0 bottom-0 p-4 bg-gradient-to-t from-black z-10">
+                        <h3 class="text-xs font-black text-white group-hover:text-amber-400 truncate">{item.data.title}</h3>
+                     </div>
+                  </div>
+               </a>
+            ))}
+         </div>
+      </div>
+    )}
+
+  </div>
+</Layout>

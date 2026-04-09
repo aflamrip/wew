@@ -1,0 +1,174 @@
+---
+import Layout from '../../../../layouts/Layout.astro';
+import { getPrefix, getDynamicItemBySlug, getSeoPromo } from '../../../../lib/constants';
+import PlayerIsland from '../../../../components/PlayerIsland.astro';
+import EpisodeIsland from '../../../../components/EpisodeIsland.astro';
+
+const { type, slug, extra } = Astro.params;
+const isMovie = type === 'movie' || type === 'movies';
+const pluralType = isMovie ? 'movie' : 'tv';
+
+// SSR Fetch: Dynamically get the item for the player
+let item = await getDynamicItemBySlug(pluralType as any, slug as string);
+
+// Internal Fallback for Testing (Requested by User)
+const mocks: Record<string, any> = {
+  "family-business": { 
+    id: "2097884",
+    data: { title: "فاميلي بيزنس", year: 2026, type: "movie", overview: "تكافح عائلة فقيرة من أجل البقاء على قيد الحياة من خلال عمليات سرقة بسيطة، لكن الأب يقرر ابتكار خطة مختلفة تقوم على حصول كل فرد من أفراد العائلة على وظيفة في منزل عائلة ثرية، مع إخفاء صلة قرابتهمببعضهم البعض. ويواجهون باستمرار التناقض الصارخ بين عالمهم وعالم أصحاب العمل.", genres: ["ﻛﻮﻣﻴﺪﻱ"], slug: "family-business" } 
+  },
+  "ali-klay": { 
+    id: "2096455",
+    data: { title: "علي كلاي", year: 2026, type: "tv", overview: "علي، شاب نال لقب «كلاي» بين جيرانه بفضل براعته الاستثنائية في الملاكمة وقوة جأشه. بعيداً عن حلبة النزال، يعمل في تجارة قطع غيار السيارات، محاولا الموازنة بين خشونة عمله وطموحاته الرياضية.\r\nلكن أقسى مبارياته لا تكن فوق الحلبة، بل في حياته الخاصة؛ حيث يجد نفسه عالقاً في حلبة من النزاعات الأسرية المستمرة، وصراعات عاطفية مع حبيبته.", genres: ["ﺩﺭاﻣﺎ", "أكشن"], slug: "ali-klay" } 
+  }
+};
+
+// Prioritize Mock Data for testing if CDN data is missing or incomplete
+if (!item || (slug && mocks[slug] && !item.data.overview)) {
+  if (slug && mocks[slug]) item = mocks[slug];
+}
+
+if (!item) {
+  return Astro.redirect('/404');
+}
+
+const isArabic = item.data.lang === 'ar';
+const suffix = isArabic ? 'كامل' : 'مترجم';
+const movieYear = item.data.year || (item.data.release_date ? item.data.release_date.split('-')[0] : '');
+
+const sRaw = extra?.split('/')[0]?.replace('s', '') || (pluralType === 'tv' ? '1' : undefined);
+const eRaw = extra?.split('/')[1]?.replace('e', '') || (pluralType === 'tv' ? '1' : undefined);
+const season = sRaw ? parseInt(sRaw, 10).toString() : undefined;
+const episode = eRaw ? parseInt(eRaw, 10).toString() : undefined;
+const prefix = getPrefix(item.id);
+const canonicalUrl = Astro.url.pathname;
+
+const getArabicOrdinal = (numStr?: string) => {
+  const num = parseInt(numStr || '1', 10);
+  const ordinals: Record<number, string> = {
+    1: 'الاولى', 2: 'الثانية', 3: 'الثالثة', 4: 'الرابعة', 5: 'الخامسة',
+    6: 'السادسة', 7: 'السابعة', 8: 'الثامنة', 9: 'التاسعة', 10: 'العاشرة',
+    11: 'الحادية عشر', 12: 'الثانية عشر', 13: 'الثالثة عشر', 14: 'الرابعة عشر',
+    15: 'الخامسة عشر', 16: 'السادسة عشر', 17: 'السابعة عشر', 18: 'الثامنة عشر',
+    19: 'التاسعة عشر', 20: 'العشرون', 21: 'الحادية والعشرون', 22: 'الثانية والعشرون',
+    23: 'الثالثة والعشرون', 24: 'الرابعة والعشرون', 25: 'الخامسة والعشرون',
+    26: 'السادسة والعشرون', 27: 'السابعة والعشرون', 28: 'الثامنة والعشرون',
+    29: 'التاسعة والعشرون', 30: 'الثلاثون'
+  };
+  return ordinals[num] || '';
+};
+
+const arabicTitle = item.data?.arabic_title;
+const englishTitle = item.data?.original_title || item.data?.title || item.title;
+
+const isArabicSeries = !isMovie && isArabic;
+const cleanTitleFunc = (t: string) => t 
+  ? t.replace(/\s*ج\s*[0-9\u0660-\u0669]+/gi, '')
+     .replace(/\s*الموسم\s*[0-9\u0660-\u0669]+/gi, '')
+     .replace(/\s*الجزء\s+[^\s]+/gi, '')
+     .replace(/\s*\(?\[?[0-9]{4}\)?\]?$/g, '') 
+     .trim() 
+  : '';
+const displayItemTitle = isArabic ? cleanTitleFunc(arabicTitle || englishTitle) : cleanTitleFunc(englishTitle);
+
+// Optimal Cache-Control for Cloudflare SSR + Edge Caching
+Astro.response.headers.set('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=14400');
+---
+
+<Layout 
+  canonical={canonicalUrl}
+  type={isMovie ? 'movie' : 'tv' as any}
+  item={item}
+  season={season}
+  episode={episode}
+>
+
+  <div class="space-y-12 py-8 mt-4 max-w-7xl mx-auto">
+    
+    <div class="mb-6 flex flex-col sm:flex-row justify-between items-start gap-4 p-6 bg-zinc-900/40 rounded-2xl border border-zinc-800/80 backdrop-blur-xl">
+      <div>
+        <h1 class="text-3xl font-black border-r-4 border-primary pr-4 py-1 flex items-center flex-wrap gap-2 text-zinc-100 uppercase tracking-tight">
+           {isMovie ? (
+             isArabic ? `مشاهدة فيلم ${displayItemTitle} ${movieYear} كامل - معاك سيما` : `مشاهدة فيلم ${displayItemTitle} ${movieYear} مترجم - معاك سيما`
+           ) : (
+             isArabic ? (
+               parseInt(season || '1') > 1 
+                 ? `مشاهدة مسلسل ${displayItemTitle} الموسم ${season} الحلقة ${episode} ${getArabicOrdinal(episode)} - معاك سيما`
+                 : `مشاهدة مسلسل ${displayItemTitle} الحلقة ${episode} ${getArabicOrdinal(episode)} - معاك سيما`
+             ) : (
+               `مشاهدة مسلسل ${displayItemTitle} الموسم ${season || 'الاول'} الحلقة ${episode} مترجمة - معاك سيما`
+             )
+           )}
+        </h1>
+        <p class="text-zinc-500 mt-3 text-sm max-w-3xl pr-4 leading-relaxed font-medium">
+           {isMovie ? (
+             isArabic 
+               ? `مشاهدة وتحميل فيلم "${displayItemTitle} ${movieYear}" اون لاين بجودة عالية HD كامل ${item.data?.overview || ''}`
+               : `مشاهد وتحميل فيلم ${displayItemTitle} ${movieYear} مترجم اون لاين بجودة عالية HD كامل ${item.data?.overview || ''}`
+           ) : (
+             isArabic
+               ? `مشاهدة وتحميل مسلسل ${displayItemTitle} الحلقة ${episode} اون لاين ${item.data?.overview || ''}`
+               : `مشاهدة وتحميل الحلقة ${episode} ${getArabicOrdinal(episode)} من مسلسل ${pluralType === 'tv' ? (item.data?.genres?.[0] || 'دراما') : ''} ${displayItemTitle} الموسم الاول مترجم بجودة HD اون لاين وتحميل مباشر مشاهدة مسلسل ${displayItemTitle} ${item.data?.overview || ''}`
+           )}
+        </p>
+      </div>
+
+      <a href={`/${isMovie ? 'movie' : 'tv'}/${slug}`} class="shrink-0 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30 px-5 py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2 mt-4 sm:mt-0 shadow-lg">
+         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+         العودة لصفحة معلومات {isMovie ? 'فيلم' : 'مسلسل'} {displayItemTitle}
+      </a>
+    </div>
+
+    <!-- Rotating SEO Promo Notice -->
+    <div class="mb-6 py-4 px-6 bg-primary/5 border border-primary/20 rounded-2xl flex items-center gap-4 group hover:bg-primary/10 transition-all duration-500 shadow-xl">
+       <div class="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
+         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+       </div>
+       <p class="text-zinc-300 text-sm md:text-base font-bold leading-relaxed">
+         {getSeoPromo(item.id)}
+       </p>
+    </div>
+
+    <!-- Static Notices Above Player -->
+    <div class="mb-6 px-4 py-3 bg-red-500/10 border-l-4 border-red-500 rounded-lg flex items-center gap-4 shadow-xl">
+       <div class="p-2 bg-red-500/20 text-red-500 rounded-full">
+         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+       </div>
+       <p class="text-zinc-100 font-black text-sm">
+         {isMovie ? 'ملاحظة: اذا لم يعمل الفيلم حاول مرة اخرى فى وقت لاحق' : 'ملاحظة: اذا وجدت الحلقة السابقة حاول مرة اخرى فى وقت لاحق'}
+       </p>
+    </div>
+
+    <!-- The Player Island Loading Plyr.js Async via Server Islands -->
+    <PlayerIsland server:defer type={type} id={item.id} prefix={prefix} season={season} episode={episode}>
+      <div slot="fallback" class="aspect-video bg-zinc-900 rounded-xl flex flex-col justify-center items-center shadow-2xl border border-zinc-800 skeleton w-full relative overflow-hidden">
+         <div class="absolute inset-0 z-10 bg-gradient-to-t from-black/80 to-transparent flex flex-col items-center justify-center p-8">
+           <div class="text-white text-xl flex items-center gap-3 font-bold bg-zinc-950/80 px-6 py-4 rounded-2xl shadow-xl backdrop-blur-xl border border-zinc-800">
+             <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="animate-spin text-primary"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg>
+             جاري تحميل وتجهيز سيرفر المشاهدة...
+           </div>
+           <p class="text-zinc-400 mt-4 text-sm mt-8 opacity-70">يتم جلب الرابط من شبكة CDN المخصصة</p>
+         </div>
+      </div>
+    </PlayerIsland>
+    
+    <!-- Disclaimer Notice -->
+    <div class="mt-8 p-6 bg-zinc-900/30 rounded-2xl border border-zinc-800/50 backdrop-blur-md">
+       <div class="flex flex-col md:flex-row items-center gap-4 text-center md:text-right">
+          <div class="p-2.5 bg-amber-500/10 text-amber-500 rounded-xl border border-amber-500/20 shrink-0">
+             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+          </div>
+          <p class="text-zinc-500 text-sm font-bold leading-relaxed">
+             <span class="text-zinc-300">إخلاء مسئولية:</span> هذا المحتوى لم يتم انشائه او استضافته بواسطة موقع 
+             <span class="text-primary">معاك سيما</span> وأي مسئولية قانونية تقع على عاتق الطرف الثالث المستضيف للمحتوى.
+          </p>
+       </div>
+    </div>
+
+    <!-- The Episodes Island Loading (Only for TV) -->
+    {type === 'tv' && (
+      <EpisodeIsland id={item.id} prefix={prefix} season={season} currentEpisode={episode} slug={slug} combinedTitle={displayItemTitle} />
+    )}
+
+  </div>
+</Layout>

@@ -1,0 +1,65 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { GENRES_LIST } from '../lib/constants';
+
+const pageTitle = "جميع أقسام وفئات معاك سيما - تصفح حسب النوع";
+const pageDescription = "استكشف جميع أقسام الأفلام والمسلسلات في موقع معاك سيما، تصفح حسب نوع العمل (أكشن، دراما، كوميديا، رعب) وجد ما تبحث عنه بسهولة.";
+
+Astro.response.headers.set('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=14400');
+---
+
+<Layout title={pageTitle} description={pageDescription}>
+  <div class="space-y-16 py-12">
+    
+    <!-- Hero Section -->
+    <div class="text-center space-y-4 max-w-4xl mx-auto px-4">
+      <h1 class="text-5xl md:text-7xl font-black text-white tracking-tight">
+        استكشف <span class="bg-clip-text text-transparent bg-gradient-to-r from-primary to-blue-400">عالمنا</span>
+      </h1>
+      <p class="text-zinc-500 text-xl font-medium leading-relaxed">
+        تصفح مكتبتنا الضخمة حسب الفئة التي تفضلها، نوفر لك أحدث الأعمال الفنية المنظمة بدقة لتناسب مختلف الأذواق والميول.
+      </p>
+    </div>
+
+    <!-- Category Grid -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8 px-4">
+      {GENRES_LIST.map(genre => (
+        <div class="group relative flex flex-col items-center p-8 rounded-[2.5rem] bg-zinc-900/40 border border-zinc-800 hover:border-primary/50 hover:bg-zinc-900/80 transition-all duration-700 hover:-translate-y-2 shadow-2xl">
+           <!-- Icon & Name Wrapper -->
+           <div class="w-24 h-24 rounded-full bg-zinc-800/50 backdrop-blur-md flex items-center justify-center text-5xl mb-6 group-hover:scale-110 transition-transform duration-500 shadow-inner">
+             {genre.icon}
+           </div>
+           
+           <h2 class="text-3xl font-black text-white mb-2 group-hover:text-primary transition-colors">{genre.name}</h2>
+           <p class="text-xs text-zinc-500 font-bold tracking-widest uppercase mb-8">اختر نوع التصنيف</p>
+           
+           <!-- Improved Toggle-style Browsing Buttons -->
+           <div class="flex items-center w-full p-1.5 bg-zinc-950 rounded-2xl border border-zinc-800">
+              <a 
+                href={`/movie/category/${genre.slug}`} 
+                class="flex-1 py-3 px-2 rounded-xl text-xs font-black text-zinc-400 hover:bg-primary hover:text-white transition-all text-center"
+              >
+                أفلام
+              </a>
+              <div class="w-px h-6 bg-zinc-800"></div>
+              <a 
+                href={`/tv/category/${genre.slug}`} 
+                class="flex-1 py-3 px-2 rounded-xl text-xs font-black text-zinc-400 hover:bg-emerald-500 hover:text-white transition-all text-center"
+              >
+                مسلسلات
+              </a>
+           </div>
+        </div>
+      ))}
+    </div>
+
+    <!-- SEO Support Content -->
+    <div class="bg-zinc-900/40 p-12 rounded-3xl border border-zinc-800 text-right space-y-6">
+       <h3 class="text-2xl font-black text-white">لماذا تتصفح الأفلام حسب التصنيف؟</h3>
+       <p class="text-zinc-400 leading-relaxed max-w-5xl">
+         تسهل الأقسام على المستخدمين الوصول لمحتوى متخصص يحاكي حالتهم المزاجية. إذا كنت تبحث عن الأدرينالين فإن قسم الأكشن هو خيارك الأنسب، وإذا كنت تبحث عن المتعة العائلية فإن قسم الانيميشن والرسوم المتحركة يوفر لك الأجمل دائماً. نظام معاك سيما يجمع لك آلاف الأعمال الفنية تحت تصنيف واحد لتصل لما تريد في ثوانٍ.
+       </p>
+    </div>
+
+  </div>
+</Layout>

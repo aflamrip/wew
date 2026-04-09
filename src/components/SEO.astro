@@ -1,0 +1,86 @@
+---
+interface Props {
+  title: string;
+  description: string;
+  type?: 'website' | 'movie' | 'tv';
+  item?: any;
+  season?: string;
+  episode?: string;
+  canonical?: string;
+  noindex?: boolean;
+}
+
+import { getSeoMetadata } from '../lib/seo/engine';
+
+const { title, description, type = 'website', item, season, episode, canonical, noindex = false } = Astro.props;
+
+const siteUrl = Astro.site ? Astro.site.toString().replace(/\/$/, '') : 'https://ma3ak.top';
+const currentUrl = new URL(Astro.url.pathname, siteUrl).toString();
+
+// If canonical is provided as a path (/tv/slug), turn it into absolute URL with domain
+let finalCanonical = currentUrl;
+if (canonical) {
+  if (canonical.startsWith('http')) {
+    finalCanonical = canonical;
+  } else {
+    finalCanonical = `${siteUrl}${canonical.startsWith('/') ? '' : '/'}${canonical}`;
+  }
+}
+
+// Robots logic
+const robots = noindex ? "noindex, follow" : "index, follow";
+
+let finalSeoTitle = title;
+let finalMetaDescription = description;
+let ogImageUrl = '';
+let ogType = type === 'website' ? 'website' : 'video.movie';
+let schema = null;
+
+if (item) {
+  const isWatchPage = Astro.url.pathname.includes('/watch/');
+  const meta = getSeoMetadata({
+    item,
+    type: type as any,
+    season,
+    episode,
+    siteUrl,
+    currentUrl,
+    isWatchPage
+  });
+
+  finalSeoTitle = meta.title;
+  finalMetaDescription = meta.description;
+  schema = meta.schema;
+  ogType = meta.ogType;
+  
+  // Image logic
+  const prefix = item.id.toString().substring(0, 2);
+  const domainType = (type === 'movie' || type === 'movies') ? 'movies' : 'tv';
+  ogImageUrl = `https://static.ma3ak.top/${domainType}/${prefix}/${item.id}/${item.id}.webp`;
+}
+
+if (!finalMetaDescription || finalMetaDescription === "موقع معاك سيما لمشاهدة الافلام والمسلسلات") {
+    finalMetaDescription = "موقع معاك سيما لمشاهدة أحدث الافلام والمسلسلات العربية والأجنبية بجودة عالية أون لاين.";
+}
+
+
+---
+
+<meta name="description" content={finalMetaDescription} />
+<meta name="robots" content={robots} />
+<link rel="canonical" href={finalCanonical} />
+
+<meta property="og:type" content={type === 'website' ? 'website' : 'video.movie'} />
+<meta property="og:title" content={finalSeoTitle} />
+<meta property="og:description" content={finalMetaDescription} />
+<meta property="og:url" content={currentUrl} />
+<meta property="og:image" content={ogImageUrl} />
+
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content={finalSeoTitle} />
+<meta name="twitter:description" content={finalMetaDescription} />
+<meta name="twitter:image" content={ogImageUrl} />
+
+{schema && (
+  <script type="application/ld+json" set:html={JSON.stringify(schema)} />
+)}

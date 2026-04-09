@@ -1,0 +1,110 @@
+---
+import PlyrComponent from './Plyr.svelte';
+import { CDN_URLS, getPrefix } from '../lib/constants';
+import { fetchCdnNdjson, fetchSeasonNdjson } from '../lib/cf-bindings';
+
+interface Props {
+  type: 'movie' | 'tv';
+  prefix?: string;
+  id: string;
+  season?: string;
+  episode?: string;
+}
+
+const { type, prefix: prefixProp, id, season, episode } = Astro.props;
+const prefix = prefixProp || getPrefix(id);
+
+let videoUrl    = '';
+let subtitleUrl = '';
+
+try {
+  const isMovie      = type === 'movie' || type === 'movies';
+  const pluralType   = isMovie ? 'movies' : 'tv';
+  const seasonPadded = season ? season.padStart(2, '0') : '01';
+
+  // Fetch metadata via R2/KV binding (falls back to HTTP in local dev)
+  let dataText: string | null = null;
+
+  if (type === 'tv' && season) {
+    dataText = await fetchSeasonNdjson(prefix, id, seasonPadded);
+  } else {
+    dataText = await fetchCdnNdjson(pluralType as 'movies' | 'tv', prefix, id);
+  }
+
+  if (dataText) {
+    const lines = dataText
+      .split('\n')
+      .filter(l => l.trim().length > 0);
+
+    let data: any;
+    if (type === 'tv' && episode) {
+      data = lines
+        .map(l => { try { return JSON.parse(l); } catch { return null; } })
+        .filter(Boolean)
+        .find((d: any) => d.episode?.toString() === episode.toString());
+    } else {
+      try { data = JSON.parse(lines[0]); } catch { data = null; }
+    }
+
+    if (data && data.url) {
+      const epNum = episode ? episode.toString() : (data.episode?.toString() || '1');
+      let cleanPath = data.url;
+
+      cleanPath = cleanPath
+        .replace(/\[type\]/g,    pluralType)
+        .replace(/{type}/g,      pluralType)
+        .replace(/\/movie\//g,   '/movies/')
+        .replace(/\[prefix\]/g,  prefix)
+        .replace(/{prefix}/g,    prefix)
+        .replace(/\[id\]/g,      id)
+        .replace(/{id}/g,        id)
+        .replace(/{season}/g,    seasonPadded || '01')
+        .replace(/{episode}/g,   epNum || '1');
+
+      const isActuallyTV = type === 'tv' || cleanPath.includes('/tv/');
+      if (!isActuallyTV) {
+        cleanPath = cleanPath.replace(/\/s\d+\//g, '/');
+      } else {
+        if (!cleanPath.includes(`/s${seasonPadded}/`)) {
+          cleanPath = cleanPath.replace(new RegExp(`/${id}/`, 'g'), `/${id}/s${seasonPadded}/`);
+        }
+      }
+
+      // Normalise double-slashes
+      if (cleanPath.includes('://')) {
+        const parts = cleanPath.split('://');
+        cleanPath = parts[0] + '://' + parts[1].replace(/\/\/+/g, '/');
+      } else {
+        cleanPath = cleanPath.replace(/\/\/+/g, '/');
+      }
+      cleanPath = cleanPath.replace(/^\/+/, '');
+
+      if (!cleanPath.startsWith('http')) {
+        const domain = CDN_URLS.VIDEO.replace(/\/$/, '');
+        videoUrl = `${domain}/${cleanPath}`;
+      } else {
+        videoUrl = cleanPath;
+      }
+    }
+  }
+
+  subtitleUrl = `${CDN_URLS.VIDEO.replace(/\/$/, '')}/${pluralType}/${prefix}/${id}/ar.vtt`;
+
+} catch (e) {
+  console.error('[PlayerIsland] Error:', e);
+}
+---
+
+<div class="aspect-video bg-black rounded-xl overflow-hidden shadow-2xl relative border border-zinc-800">
+  {videoUrl ? (
+    <PlyrComponent client:only="svelte" src={videoUrl} subtitle={subtitleUrl} />
+  ) : (
+    <div class="absolute inset-0 flex items-center justify-center bg-zinc-900">
+      <div class="flex flex-col items-center gap-4">
+        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+        <p class="text-zinc-400">جاري تحميل الفيلم/الحلقة...</p>
+        <p class="text-zinc-600 text-xs">إذا لم يظهر المشغل، تأكد من توفر ملف CDN</p>
+      </div>
+    </div>
+  )}
+</div>
