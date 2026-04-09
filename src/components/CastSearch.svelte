@@ -10,7 +10,7 @@
   const displayType = isMovie ? 'أفلام' : 'مسلسلات';
   const routeType = isMovie ? 'movie' : 'tv';
 
-  // Fetch from server API (no CORS, cached at Edge)
+  // Fetch from server API — scoped to the requested type only
   $effect(() => {
     if (!actorName) return;
 
@@ -23,6 +23,7 @@
         const res = await fetch(`/api/cast/${routeType}?name=${encodeURIComponent(actorName)}`);
         if (!res.ok) throw new Error('API error');
         const data = await res.json();
+        // Every item returned by the API already has .type = routeType
         items = data;
       } catch (e) {
         error = 'حدث خطأ أثناء البحث، يرجى المحاولة لاحقاً.';
@@ -42,7 +43,7 @@
     <div class="bg-zinc-900/60 rounded-2xl p-6 border border-zinc-800 space-y-4">
       <div class="flex items-center gap-3 text-sm font-bold text-zinc-400">
         <span class="w-2 h-2 bg-amber-500 rounded-full animate-pulse"></span>
-        جاري البحث عن أعمال {actorName}...
+        جاري البحث عن {displayType} {actorName}...
       </div>
       <div class="w-full bg-zinc-800 rounded-full h-1.5 overflow-hidden">
         <div class="bg-gradient-to-l from-amber-500 to-orange-500 h-full rounded-full animate-pulse w-2/3"></div>
