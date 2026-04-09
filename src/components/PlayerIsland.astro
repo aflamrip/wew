@@ -1,6 +1,7 @@
 ---
+// src/components/PlayerIsland.astro
 import PlyrComponent from './Plyr.svelte';
-import { CDN_URLS, getPrefix } from '../lib/constants';
+import { getPrefix, getVideoDomain } from '../lib/constants';
 import { fetchCdnNdjson, fetchSeasonNdjson } from '../lib/cf-bindings';
 
 interface Props {
@@ -9,20 +10,26 @@ interface Props {
   id: string;
   season?: string;
   episode?: string;
+  /** Content language — subtitles are only loaded for foreign (non-Arabic) content */
+  lang?: string;
 }
 
-const { type, prefix: prefixProp, id, season, episode } = Astro.props;
+const { type, prefix: prefixProp, id, season, episode, lang = 'ar' } = Astro.props;
 const prefix = prefixProp || getPrefix(id);
 
 let videoUrl    = '';
 let subtitleUrl = '';
+
+// Determine if this is foreign content (non-Arabic).
+// ar.vtt subtitles are only served for foreign movies/series.
+const isForeign = lang !== 'ar';
 
 try {
   const isMovie      = type === 'movie' || type === 'movies';
   const pluralType   = isMovie ? 'movies' : 'tv';
   const seasonPadded = season ? season.padStart(2, '0') : '01';
 
-  // Fetch metadata via R2/KV binding (falls back to HTTP in local dev)
+  // Fetch metadata via R2/KV binding
   let dataText: string | null = null;
 
   if (type === 'tv' && season) {
@@ -79,16 +86,30 @@ try {
       }
       cleanPath = cleanPath.replace(/^\/+/, '');
 
+      // Select video CDN domain based on content id for consistent load distribution
+      const videoDomain = getVideoDomain(id).replace(/\/$/, '');
+
       if (!cleanPath.startsWith('http')) {
-        const domain = CDN_URLS.VIDEO.replace(/\/$/, '');
-        videoUrl = `${domain}/${cleanPath}`;
+        videoUrl = `${videoDomain}/${cleanPath}`;
       } else {
-        videoUrl = cleanPath;
+        // Replace existing domain in absolute URL with rotated domain
+        try {
+          const parsed = new URL(cleanPath);
+          const rotated = new URL(videoDomain);
+          parsed.hostname = rotated.hostname;
+          videoUrl = parsed.toString();
+        } catch {
+          videoUrl = cleanPath;
+        }
       }
     }
   }
 
-  subtitleUrl = `${CDN_URLS.VIDEO.replace(/\/$/, '')}/${pluralType}/${prefix}/${id}/ar.vtt`;
+  // Subtitle: only for foreign content (not Arabic)
+  if (isForeign) {
+    const videoDomain = getVideoDomain(id).replace(/\/$/, '');
+    subtitleUrl = `${videoDomain}/${pluralType}/${prefix}/${id}/ar.vtt`;
+  }
 
 } catch (e) {
   console.error('[PlayerIsland] Error:', e);
@@ -97,7 +118,7 @@ try {
 
 <div class="aspect-video bg-black rounded-xl overflow-hidden shadow-2xl relative border border-zinc-800">
   {videoUrl ? (
-    <PlyrComponent client:only="svelte" src={videoUrl} subtitle={subtitleUrl} />
+    <PlyrComponent client:only="svelte" src={videoUrl} subtitle={isForeign ? subtitleUrl : ''} />
   ) : (
     <div class="absolute inset-0 flex items-center justify-center bg-zinc-900">
       <div class="flex flex-col items-center gap-4">
