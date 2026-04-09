@@ -33,14 +33,6 @@
       "bucket_name": "static",
       "preview_bucket_name": "mogcdn-static-preview"
     },
-    {
-      // Video CDN bucket: mirrors https://s001.mogcdn.com
-      // Stores: /movies/<prefix>/<id>/<id>.mp4, /tv/…, /…/ar.vtt
-      "binding": "CDN_VIDEO",
-      "bucket_name": "mogcdn-video",
-      "preview_bucket_name": "mogcdn-video-preview"
-    }
-  ],
 
   // ---------------------------------------------------------------
   // KV Namespaces
@@ -61,6 +53,6 @@
 
   // Observability (optional but recommended)
   "observability": {
-    "enabled": true
+    "enabled": false
   }
 }
