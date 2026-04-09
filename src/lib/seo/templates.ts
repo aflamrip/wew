@@ -41,6 +41,7 @@ const smartTruncate = (str: string, max: number) => {
   return str.length > max ? str.substring(0, max - 3) + '...' : str;
 };
 
+/** Poster URL — always uses image CDN (static.ma3ak.top) */
 const getPosterUrl = (item: any, type: 'movie' | 'tv') => {
   const prefix = getPrefix(item.id);
   const path = type === 'movie' ? 'movies' : 'tv';
@@ -126,7 +127,6 @@ export function foreignMovieTemplate(input: SeoItemInput): SeoMetadata {
   const arTitle = cleanTitle(item.data?.['title-ar'] || item.data?.arabic_title || '');
   const year = item.data?.year || '2026';
   const overview = item.data?.overview || item.overview || '';
-  const genres = Array.isArray(item.data?.genres) ? item.data.genres.join(' ') : 'افلام اجنبية';
   const slug = item.data?.slug || item.slug || '';
   const { pubDate, modDate } = getFormattedDates(item);
   const poster = getPosterUrl(item, 'movie');
