@@ -1,4 +1,5 @@
 ---
+// src/pages/watch/[type]/[slug]/[...extra].astro
 import Layout from '../../../../layouts/Layout.astro';
 import { getPrefix, getDynamicItemBySlug, getSeoPromo } from '../../../../lib/constants';
 import PlayerIsland from '../../../../components/PlayerIsland.astro';
@@ -8,22 +9,19 @@ const { type, slug, extra } = Astro.params;
 const isMovie = type === 'movie' || type === 'movies';
 const pluralType = isMovie ? 'movie' : 'tv';
 
-// SSR Fetch: Dynamically get the item for the player
 let item = await getDynamicItemBySlug(pluralType as any, slug as string);
 
-// Internal Fallback for Testing (Requested by User)
 const mocks: Record<string, any> = {
   "family-business": { 
     id: "2097884",
-    data: { title: "فاميلي بيزنس", year: 2026, type: "movie", overview: "تكافح عائلة فقيرة من أجل البقاء على قيد الحياة من خلال عمليات سرقة بسيطة، لكن الأب يقرر ابتكار خطة مختلفة تقوم على حصول كل فرد من أفراد العائلة على وظيفة في منزل عائلة ثرية، مع إخفاء صلة قرابتهمببعضهم البعض. ويواجهون باستمرار التناقض الصارخ بين عالمهم وعالم أصحاب العمل.", genres: ["ﻛﻮﻣﻴﺪﻱ"], slug: "family-business" } 
+    data: { title: "فاميلي بيزنس", year: 2026, type: "movie", lang: "ar", overview: "تكافح عائلة فقيرة من أجل البقاء على قيد الحياة من خلال عمليات سرقة بسيطة، لكن الأب يقرر ابتكار خطة مختلفة تقوم على حصول كل فرد من أفراد العائلة على وظيفة في منزل عائلة ثرية، مع إخفاء صلة قرابتهمببعضهم البعض. ويواجهون باستمرار التناقض الصارخ بين عالمهم وعالم أصحاب العمل.", genres: ["ﻛﻮﻣﻴدي"], slug: "family-business" } 
   },
   "ali-klay": { 
     id: "2096455",
-    data: { title: "علي كلاي", year: 2026, type: "tv", overview: "علي، شاب نال لقب «كلاي» بين جيرانه بفضل براعته الاستثنائية في الملاكمة وقوة جأشه. بعيداً عن حلبة النزال، يعمل في تجارة قطع غيار السيارات، محاولا الموازنة بين خشونة عمله وطموحاته الرياضية.\r\nلكن أقسى مبارياته لا تكن فوق الحلبة، بل في حياته الخاصة؛ حيث يجد نفسه عالقاً في حلبة من النزاعات الأسرية المستمرة، وصراعات عاطفية مع حبيبته.", genres: ["ﺩﺭاﻣﺎ", "أكشن"], slug: "ali-klay" } 
+    data: { title: "علي كلاي", year: 2026, type: "tv", lang: "ar", overview: "علي، شاب نال لقب «كلاي» بين جيرانه بفضل براعته الاستثنائية في الملاكمة وقوة جأشه. بعيداً عن حلبة النزال، يعمل في تجارة قطع غيار السيارات، محاولا الموازنة بين خشونة عمله وطموحاته الرياضية.\r\nلكن أقسى مبارياته لا تكن فوق الحلبة، بل في حياته الخاصة؛ حيث يجد نفسه عالقاً في حلبة من النزاعات الأسرية المستمرة، وصراعات عاطفية مع حبيبته.", genres: ["ﺩﺭاﻣﺎ", "أكشن"], slug: "ali-klay" } 
   }
 };
 
-// Prioritize Mock Data for testing if CDN data is missing or incomplete
 if (!item || (slug && mocks[slug] && !item.data.overview)) {
   if (slug && mocks[slug]) item = mocks[slug];
 }
@@ -33,8 +31,7 @@ if (!item) {
 }
 
 const isArabic = item.data.lang === 'ar';
-const suffix = isArabic ? 'كامل' : 'مترجم';
-const movieYear = item.data.year || (item.data.release_date ? item.data.release_date.split('-')[0] : '');
+const contentLang = item.data.lang || 'ar';
 
 const sRaw = extra?.split('/')[0]?.replace('s', '') || (pluralType === 'tv' ? '1' : undefined);
 const eRaw = extra?.split('/')[1]?.replace('e', '') || (pluralType === 'tv' ? '1' : undefined);
@@ -61,7 +58,6 @@ const getArabicOrdinal = (numStr?: string) => {
 const arabicTitle = item.data?.arabic_title;
 const englishTitle = item.data?.original_title || item.data?.title || item.title;
 
-const isArabicSeries = !isMovie && isArabic;
 const cleanTitleFunc = (t: string) => t 
   ? t.replace(/\s*ج\s*[0-9\u0660-\u0669]+/gi, '')
      .replace(/\s*الموسم\s*[0-9\u0660-\u0669]+/gi, '')
@@ -71,7 +67,8 @@ const cleanTitleFunc = (t: string) => t
   : '';
 const displayItemTitle = isArabic ? cleanTitleFunc(arabicTitle || englishTitle) : cleanTitleFunc(englishTitle);
 
-// Optimal Cache-Control for Cloudflare SSR + Edge Caching
+const movieYear = item.data.year || (item.data.release_date ? item.data.release_date.split('-')[0] : '');
+
 Astro.response.headers.set('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=14400');
 ---
 
@@ -104,11 +101,11 @@ Astro.response.headers.set('Cache-Control', 'public, s-maxage=3600, stale-while-
            {isMovie ? (
              isArabic 
                ? `مشاهدة وتحميل فيلم "${displayItemTitle} ${movieYear}" اون لاين بجودة عالية HD كامل ${item.data?.overview || ''}`
-               : `مشاهد وتحميل فيلم ${displayItemTitle} ${movieYear} مترجم اون لاين بجودة عالية HD كامل ${item.data?.overview || ''}`
+               : `مشاهدة وتحميل فيلم ${displayItemTitle} ${movieYear} مترجم اون لاين بجودة عالية HD كامل ${item.data?.overview || ''}`
            ) : (
              isArabic
                ? `مشاهدة وتحميل مسلسل ${displayItemTitle} الحلقة ${episode} اون لاين ${item.data?.overview || ''}`
-               : `مشاهدة وتحميل الحلقة ${episode} ${getArabicOrdinal(episode)} من مسلسل ${pluralType === 'tv' ? (item.data?.genres?.[0] || 'دراما') : ''} ${displayItemTitle} الموسم الاول مترجم بجودة HD اون لاين وتحميل مباشر مشاهدة مسلسل ${displayItemTitle} ${item.data?.overview || ''}`
+               : `مشاهدة وتحميل الحلقة ${episode} ${getArabicOrdinal(episode)} من مسلسل ${displayItemTitle} مترجم بجودة HD اون لاين ${item.data?.overview || ''}`
            )}
         </p>
       </div>
@@ -129,7 +126,7 @@ Astro.response.headers.set('Cache-Control', 'public, s-maxage=3600, stale-while-
        </p>
     </div>
 
-    <!-- Static Notices Above Player -->
+    <!-- Static Notice -->
     <div class="mb-6 px-4 py-3 bg-red-500/10 border-l-4 border-red-500 rounded-lg flex items-center gap-4 shadow-xl">
        <div class="p-2 bg-red-500/20 text-red-500 rounded-full">
          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
@@ -139,8 +136,16 @@ Astro.response.headers.set('Cache-Control', 'public, s-maxage=3600, stale-while-
        </p>
     </div>
 
-    <!-- The Player Island Loading Plyr.js Async via Server Islands -->
-    <PlayerIsland server:defer type={type} id={item.id} prefix={prefix} season={season} episode={episode}>
+    <!-- Player Island — passes content language for subtitle logic -->
+    <PlayerIsland
+      server:defer
+      type={type}
+      id={item.id}
+      prefix={prefix}
+      season={season}
+      episode={episode}
+      lang={contentLang}
+    >
       <div slot="fallback" class="aspect-video bg-zinc-900 rounded-xl flex flex-col justify-center items-center shadow-2xl border border-zinc-800 skeleton w-full relative overflow-hidden">
          <div class="absolute inset-0 z-10 bg-gradient-to-t from-black/80 to-transparent flex flex-col items-center justify-center p-8">
            <div class="text-white text-xl flex items-center gap-3 font-bold bg-zinc-950/80 px-6 py-4 rounded-2xl shadow-xl backdrop-blur-xl border border-zinc-800">
@@ -152,7 +157,7 @@ Astro.response.headers.set('Cache-Control', 'public, s-maxage=3600, stale-while-
       </div>
     </PlayerIsland>
     
-    <!-- Disclaimer Notice -->
+    <!-- Disclaimer -->
     <div class="mt-8 p-6 bg-zinc-900/30 rounded-2xl border border-zinc-800/50 backdrop-blur-md">
        <div class="flex flex-col md:flex-row items-center gap-4 text-center md:text-right">
           <div class="p-2.5 bg-amber-500/10 text-amber-500 rounded-xl border border-amber-500/20 shrink-0">
@@ -165,7 +170,7 @@ Astro.response.headers.set('Cache-Control', 'public, s-maxage=3600, stale-while-
        </div>
     </div>
 
-    <!-- The Episodes Island Loading (Only for TV) -->
+    <!-- Episodes Island (TV only) -->
     {type === 'tv' && (
       <EpisodeIsland id={item.id} prefix={prefix} season={season} currentEpisode={episode} slug={slug} combinedTitle={displayItemTitle} />
     )}
