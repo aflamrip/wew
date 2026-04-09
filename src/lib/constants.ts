@@ -1,13 +1,13 @@
 /**
  * src/lib/constants.ts
  *
- * All CDN access now goes through the cf-bindings layer which uses:
- *   1. KV cache  (edge-local, fast)
- *   2. R2 bucket (zero-egress, reliable)
- *   3. HTTP fetch (local dev fallback only)
+ * CDN access strategy:
+ *   - ndjson data files  → R2 bucket (via cf-bindings, zero egress, no external domain)
+ *   - poster images      → static.ma3ak.top (image CDN only)
+ *   - video files        → rotating video CDN domains (s001–s003.mogcdn.com, etc.)
+ *   - subtitles (ar.vtt) → video CDN, foreign content only
  */
 
-import ndjsonStream from 'can-ndjson-stream';
 import {
   fetchIndexPage,
   fetchDetailNdjson,
@@ -17,13 +17,47 @@ import {
 } from './cf-bindings';
 
 // ---------------------------------------------------------------------------
-// Public CDN URLs (used for client-side <img> src, video src, etc.)
-// These are NOT used for SSR data fetching anymore.
+// Public CDN URLs
 // ---------------------------------------------------------------------------
+
+/** Image CDN — poster .webp files only */
 export const CDN_URLS = {
-  STATIC: 'https://static.ma3ak.top',
-  VIDEO:  'https://s001.mogcdn.com',
+  STATIC: 'https://static.ma3ak.top',   // images only
+  VIDEO:  'https://s001.mogcdn.com',     // legacy default (use getVideoDomain() instead)
 };
+
+/**
+ * Video CDN domain pool.
+ * Add / remove domains here as infrastructure grows.
+ * Domains are rotated deterministically per-user-session via a hash so the
+ * same user always hits the same CDN edge (good for HTTP cache reuse) while
+ * different users are spread across all domains.
+ */
+const VIDEO_DOMAINS = [
+  'https://s001.mogcdn.com',
+  'https://s002.mogcdn.com',
+  'https://s003.mogcdn.com',
+] as const;
+
+/**
+ * Return a video CDN domain for the given item id.
+ * Uses a simple hash so a given piece of content always maps to the same
+ * domain (consistent caching) while distributing load across all domains.
+ *
+ * @param seed  Any string that identifies the content (e.g. video id or slug).
+ */
+export function getVideoDomain(seed?: string): string {
+  if (!seed || VIDEO_DOMAINS.length === 1) return VIDEO_DOMAINS[0];
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) {
+    hash = ((hash << 5) - hash) + seed.charCodeAt(i);
+    hash |= 0;
+  }
+  return VIDEO_DOMAINS[Math.abs(hash) % VIDEO_DOMAINS.length];
+}
+
+/** Expose the full list (useful for preconnect hints, etc.) */
+export { VIDEO_DOMAINS };
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -74,7 +108,7 @@ function normaliseItem(rawD: any): any {
 }
 
 // ---------------------------------------------------------------------------
-// SSR helper: fetch paginated index (R2 → KV → HTTP fallback)
+// SSR helper: fetch paginated index — uses R2 binding, no external domain
 // ---------------------------------------------------------------------------
 export async function getDynamicContent(type: 'movie' | 'tv', pageCount = 3) {
   try {
@@ -106,7 +140,7 @@ export async function getDynamicContent(type: 'movie' | 'tv', pageCount = 3) {
 }
 
 // ---------------------------------------------------------------------------
-// SSR helper: find a specific item by slug (R2 → KV → HTTP fallback)
+// SSR helper: find a specific item by slug — uses R2 binding throughout
 // ---------------------------------------------------------------------------
 export async function getDynamicItemBySlug(
   type: 'movie' | 'tv',
@@ -180,7 +214,6 @@ export async function getDynamicItemBySlug(
         }
       } catch { /* fall through to index data */ }
 
-      // Ultimate fallback: return index data
       return { id, data: { ...foundInIndex, slug } };
     }
 
@@ -192,7 +225,7 @@ export async function getDynamicItemBySlug(
 }
 
 // ---------------------------------------------------------------------------
-// Re-export seasonExists and fetchSeasonNdjson for EpisodeIsland / PlayerIsland
+// Re-export seasonExists and fetchSeasonNdjson
 // ---------------------------------------------------------------------------
 export { seasonExists, fetchSeasonNdjson };
 
